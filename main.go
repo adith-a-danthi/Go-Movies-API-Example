@@ -146,6 +146,36 @@ func deleteMovie(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func updateMovie(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("updateMovie Endpoint")
+
+	key, _ := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
+
+	var updateMovie Movie
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err)
+	}
+	err = json.Unmarshal(reqBody, &updateMovie)
+	if err != nil {
+		log.Println(err)
+	}
+
+	update := bson.D{{
+		"$set",
+		bson.D{
+			{"name", updateMovie.Name},
+			{"description", updateMovie.Description},
+			{"cover_image", updateMovie.CoverImage}}}}
+
+	result, err := coll.UpdateOne(context.Background(), bson.M{"_id": key}, update)
+	if err != nil {
+		log.Println(err)
+	}
+	err = json.NewEncoder(w).Encode(result)
+}
+
 func handleRequests() {
 	router := mux.NewRouter()
 
@@ -154,6 +184,7 @@ func handleRequests() {
 	router.HandleFunc("/movie/{id}", returnSingleMovie).Methods("GET")
 	router.HandleFunc("/movie", addNewMovie).Methods("POST")
 	router.HandleFunc("/movie/{id}", deleteMovie).Methods("DELETE")
+	router.HandleFunc("/movie/{id}", updateMovie).Methods("PATCH")
 	log.Fatal(http.ListenAndServe(":3000", router))
 }
 
