@@ -16,22 +16,22 @@ import (
 )
 
 type Movie struct {
-	ID          primitive.ObjectID `bson:"_id" json:"id"`
-	Name        string             `bson:"name" json:"name"`
-	Description string             `bson:"description" json:"description"`
-	CoverImage  string             `bson:"cover_image" json:"cover_image"`
+	ID          primitive.ObjectID `bson:"_id, omitempty" json:"id, omitempty"`
+	Name        string             `bson:"name, omitempty" json:"name, omitempty"`
+	Description string             `bson:"description, omitempty" json:"description, omitempty"`
+	CoverImage  string             `bson:"cover_image, omitempty" json:"cover_image, omitempty"`
 }
 
 var coll *mongo.Collection
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
+func homeHandler(w http.ResponseWriter, _ *http.Request) {
 	_, err := fmt.Fprintf(w, "Movies Home Page")
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func returnAllMovies(w http.ResponseWriter, r *http.Request) {
+func returnAllMovies(w http.ResponseWriter, _ *http.Request) {
 
 	fmt.Println("returnAllMovies Endpoint")
 
@@ -71,11 +71,13 @@ func returnSingleMovie(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 
 	params := mux.Vars(r)
-	id, _ := primitive.ObjectIDFromHex(params["id"])
-
+	id, err := primitive.ObjectIDFromHex(params["id"])
+	if err != nil {
+		log.Println(err)
+	}
 	var movie Movie
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	err := coll.FindOne(ctx, bson.M{"_id": id}).Decode(&movie)
+	err = coll.FindOne(ctx, bson.M{"_id": id}).Decode(&movie)
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -107,7 +109,7 @@ func addNewMovie(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	movie.ID = primitive.NewObjectID()
 	result, err := coll.InsertOne(context.Background(), movie)
 
 	if err != nil {
@@ -176,6 +178,34 @@ func updateMovie(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(result)
 }
 
+func searchByName(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("return Movie search results by name endpoint")
+
+	key := mux.Vars(r)["name"]
+
+	var movies []Movie
+
+	cursor, err := coll.Find(context.Background(), bson.M{"name": key})
+	if err != nil {
+		log.Println(err)
+	}
+	for cursor.Next(context.Background()) {
+		var movie Movie
+		err = cursor.Decode(&movie)
+		if err != nil {
+			log.Println(err)
+		}
+		movies = append(movies, movie)
+	}
+
+	err = json.NewEncoder(w).Encode(movies)
+
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 func handleRequests() {
 	router := mux.NewRouter()
 
@@ -185,6 +215,7 @@ func handleRequests() {
 	router.HandleFunc("/movie", addNewMovie).Methods("POST")
 	router.HandleFunc("/movie/{id}", deleteMovie).Methods("DELETE")
 	router.HandleFunc("/movie/{id}", updateMovie).Methods("PATCH")
+	router.HandleFunc("/search/movie-name/{name}", searchByName).Methods("GET")
 	log.Fatal(http.ListenAndServe(":3000", router))
 }
 
