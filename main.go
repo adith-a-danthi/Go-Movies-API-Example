@@ -186,7 +186,29 @@ func searchByName(w http.ResponseWriter, r *http.Request) {
 
 	var movies []Movie
 
-	cursor, err := coll.Find(context.Background(), bson.M{"name": key})
+	// Matches with complete string in multiple fields when indexes are used. Direct matching with multiple fields
+
+	/*
+
+		searchModel := mongo.IndexModel{
+			Options: options.Index().SetBackground(true),
+			Keys: bsonx.MDoc{
+				"name": bsonx.String("text"),
+				"description": bsonx.String("text"),
+			},
+		}
+
+		_, err := coll.Indexes().CreateOne(context.Background(), searchModel)
+		cursor, err := coll.Find(context.Background(), bson.M{"$text": bson.M{"$search": key}})
+
+	*/
+
+	// For direct matching in a single field
+	// cursor, err := coll.Find(context.Background(), bson.M{"name": key})
+
+	// Matches as substring
+	cursor, err := coll.Find(context.Background(), bson.M{"name": bson.M{"$regex": "^" + key + ".*", "$options": "i"}})
+
 	if err != nil {
 		log.Println(err)
 	}
